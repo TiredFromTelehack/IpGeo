@@ -56,4 +56,4 @@ python3 ipGeo.py /path/to/your/file.pcap --format json
 ```
 
 ## Screenshot from the script
-![ipGeo](https://user-images.githubusercontent.com/89426041/189775552-78dfb962-23ba-46e7-b1f0-3e31ef54ebd3.png)
+![ipGeo](https://github.com/TiredFromTelehack/IpGeo/blob/304bf033de0b3a67ca0a65336d8ef8ad63247b83/Screenshot_20241021_141901_Termius.jpg)

@@ -3,10 +3,29 @@ import requests
 import json
 import csv
 import argparse
-from colorama import Fore
+from colorama import Fore, Style
 from datetime import date
 import ipaddress
 import subprocess
+
+
+def display_banner():
+    """Display a welcome banner."""
+    banner = f"""
+    {Fore.BLUE + Style.BRIGHT}
+
+$$$$$$$\\  $$$$$$$\\  $$$$$$$$\\  $$$$$$\\  $$$$$$$\\  $$$$$$$$\\ $$\\   $$\\ $$\\       
+$$  __$$\\ $$  __$$\\ $$  _____|$$  __$$\\ $$  __$$\\ $$  _____|$$ |  $$ |$$ |      
+$$ |  $$ |$$ |  $$ |$$ |      $$ /  $$ |$$ |  $$ |$$ |      $$ |  $$ |$$ |      
+$$ |  $$ |$$$$$$$  |$$$$$\\    $$$$$$$$ |$$ |  $$ |$$$$$\\    $$ |  $$ |$$ |      
+$$ |  $$ |$$  __$$< $$  __|   $$  __$$ |$$ |  $$ |$$  __|   $$ |  $$ |$$ |      
+$$ |  $$ |$$ |  $$ |$$ |      $$ |  $$ |$$ |  $$ |$$ |      $$ |  $$ |$$ |      
+$$$$$$$  |$$ |  $$ |$$$$$$$$\\ $$ |  $$ |$$$$$$$  |$$ |      \\$$$$$$  |$$$$$$$$\\ 
+\\_______/ \\__|  \\__|\\________|\\__|  \\__|\\_______/ \\__|       \\______/ \\________|
+
+    {Style.RESET_ALL}Welcome to the PCAP IP Extractor and Geolocator!
+    """
+    print(banner)
 
 
 def get_local_ips():
@@ -139,14 +158,32 @@ def export_result(data, output_format):
     print(Fore.GREEN + "\n  **Report Exported Successfully!**")
 
 
+def interactive_mode():
+    """Run the script in interactive mode."""
+    print(Fore.YELLOW + "Interactive Mode: Please enter the path to the pcap file:")
+    pcap_file = input("Pcap File Path: ").strip()
+    print(Fore.YELLOW + "Choose output format (json, csv, txt, md):")
+    output_format = input("Output Format: ").strip().lower()
+
+    if output_format not in ['json', 'csv', 'txt', 'md']:
+        print(Fore.RED + "[!] Invalid output format. Defaulting to json.")
+        output_format = 'json'
+
+    read_pcap(pcap_file, output_format)
+
+
 def main():
+    display_banner()  # Call the display banner function
     parser = argparse.ArgumentParser(description='Extract IP addresses from pcap files and geolocate them.')
-    parser.add_argument('pcap', help='Path to the pcap file.')
+    parser.add_argument('pcap', nargs='?', help='Path to the pcap file.')
     parser.add_argument('--format', choices=['json', 'csv', 'txt', 'md'], default='json', help='Output format (default: json).')
 
     args = parser.parse_args()
 
-    read_pcap(args.pcap, args.format)
+    if args.pcap:
+        read_pcap(args.pcap, args.format)
+    else:
+        interactive_mode()  # Enter interactive mode if no arguments are provided
 
 
 if __name__ == "__main__":

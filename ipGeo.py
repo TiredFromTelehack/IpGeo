@@ -6,17 +6,52 @@ import argparse
 from colorama import Fore
 from datetime import date
 import ipaddress
+import subprocess
+
+
+def get_local_ips():
+    """Retrieve a list of local IPs and their subnets."""
+    local_ips = set()
+    local_subnets = set()
+
+    # Using 'ifconfig' to get all local IPs
+    try:
+        output = subprocess.check_output("ifconfig", universal_newlines=True)
+        for line in output.splitlines():
+            if "inet " in line and not line.strip().startswith("inet6"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    ip = parts[1]
+                    local_ips.add(ip)
+                    # Get the subnet mask
+                    netmask_index = line.index("netmask") + len("netmask")
+                    netmask = line[netmask_index:line.index(" ", netmask_index)].strip()
+
+                    # Ensure that netmask is a valid value
+                    if ip and netmask:
+                        # Calculate the subnet and add it to the set
+                        try:
+                            subnet = ipaddress.ip_network(f"{ip}/{netmask}", strict=False)
+                            local_subnets.add(subnet)
+                        except ValueError as e:
+                            print(Fore.RED + f"[!] Error creating subnet for IP {ip} with netmask {netmask}: {str(e)}")
+
+    except Exception as e:
+        print(Fore.RED + f"[!] Error fetching local IPs: {str(e)}")
+
+    return local_ips, local_subnets
+
 
 def read_pcap(pcap_file, output_format):
-    ips = []
+    ips = set()  # Use a set to avoid duplicates
     try:
         pcap = pyshark.FileCapture(pcap_file)
         print(Fore.GREEN + "[+] Pcap File is valid")
         for packet in pcap:
-            if "IP" in packet: 
-                ips.append(packet.ip.src) 
-                ips.append(packet["ip"].dst)
-        
+            if "IP" in packet:
+                ips.add(packet.ip.src)  # Add source IP
+                ips.add(packet["ip"].dst)  # Add destination IP
+
         ips_list(ips, output_format)
 
     except FileNotFoundError:
@@ -24,19 +59,25 @@ def read_pcap(pcap_file, output_format):
 
 
 def ips_list(ips, output_format):
+    local_ips, local_subnets = get_local_ips()
     ips_lists = []
     aborted_ips = []
     for ip in ips:
-        if ip not in ips_lists and ipaddress.ip_address(ip).is_global:
-            ips_lists.append(ip)
-        elif ip not in aborted_ips and ipaddress.ip_address(ip).is_private:
+        # Check if IP is private or matches local IPs or subnets
+        if ipaddress.ip_address(ip).is_private or ip in local_ips or any(ipaddress.ip_address(ip) in subnet for subnet in local_subnets):
             aborted_ips.append(ip)
-    
+            continue
+
+        # Check if IP is global
+        if ipaddress.ip_address(ip).is_global:
+            ips_lists.append(ip)
+
+    # Inform about removed IPs
     for ip in aborted_ips:
         print(Fore.YELLOW + "[!] Remove " + Fore.RED + ip + Fore.YELLOW + ' From Scanning')
-    
+
     if len(ips_lists) < 1:
-        exit(Fore.RED + "[-] No IP to scan.")
+        exit(Fore.RED + "[-] No global IPs to scan.")
 
     get_ip_info(ips_lists, output_format)
 
@@ -46,22 +87,37 @@ def get_ip_info(list_ip, output_format):
     for ip in list_ip:
         print(Fore.YELLOW + "[+] Start analyzing IP : " + ip)
         try:
-            req = requests.get("http://ip-api.com/json/" + ip + "?fields=status,message,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,isp,org,as,asname,reverse,mobile,proxy,hosting,query").content.decode()
-            if "message" not in req:
-                data.append(req)
+            req = requests.get("http://ip-api.com/json/" + ip + "?fields=status,message,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,isp,org,as,asname,reverse,mobile,proxy,hosting,query")
+            req_content = req.content.decode()
+
+            # Check if the response is valid JSON
+            if req.status_code == 200 and req_content:
+                try:
+                    json_data = json.loads(req_content)
+                    if json_data.get("status") == "success":
+                        # Skip IPs from hosting providers
+                        if json_data.get("isp") and "Hosting" in json_data.get("isp"):
+                            print(Fore.YELLOW + f"[!] Skipping hosting IP: {ip} - ISP: {json_data['isp']}")
+                            continue
+
+                        data.append(json_data)
+                    else:
+                        print(Fore.RED + f"[!] Error for IP {ip}: {json_data.get('message', 'Unknown error')}")
+                except json.JSONDecodeError:
+                    print(Fore.RED + f"[!] Error decoding JSON for IP {ip}. Response content: {req_content}")
+            else:
+                print(Fore.RED + f"[!] Request failed for IP {ip}: {req_content}")
+
         except requests.exceptions.ConnectionError:
             exit(Fore.RED + "Check your internet connection and try again ....")
-    
-    dic_data = []
-    for i in data:
-        l = json.loads(i)
-        dic_data.append(l)
 
-    export_result(dic_data, output_format)
+    if data:  # Proceed to export only if data is collected
+        export_result(data, output_format)
+    else:
+        print(Fore.YELLOW + "[-] No valid IP data to export.")
 
 
 def export_result(data, output_format):
-    # Modify this part to export in different formats
     if output_format == 'json':
         with open('scan_result-' + str(date.today()) + '.json', 'w', encoding='UTF8') as f:
             json.dump(data, f, indent=4)
@@ -87,11 +143,11 @@ def main():
     parser = argparse.ArgumentParser(description='Extract IP addresses from pcap files and geolocate them.')
     parser.add_argument('pcap', help='Path to the pcap file.')
     parser.add_argument('--format', choices=['json', 'csv', 'txt', 'md'], default='json', help='Output format (default: json).')
-    
+
     args = parser.parse_args()
-    
+
     read_pcap(args.pcap, args.format)
+
 
 if __name__ == "__main__":
     main()
-    

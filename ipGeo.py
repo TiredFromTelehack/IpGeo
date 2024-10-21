@@ -12,7 +12,7 @@ import subprocess
 def display_banner():
     """Display a welcome banner."""
     banner = f"""
-    {Fore.BLUE + Style.BRIGHT}
+    {Fore.RED + Style.BRIGHT}
 
 $$$$$$$\\  $$$$$$$\\  $$$$$$$$\\  $$$$$$\\  $$$$$$$\\  $$$$$$$$\\ $$\\   $$\\ $$\\       
 $$  __$$\\ $$  __$$\\ $$  _____|$$  __$$\\ $$  __$$\\ $$  _____|$$ |  $$ |$$ |      
